@@ -1,4 +1,4 @@
-#CVS1
+# CVS1
 Computational Vertex Synthesis
 
 ## About
