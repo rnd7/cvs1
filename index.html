@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>VectorSynth</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="main.css"/>
+  </head>
+  <body class="noselect">
+    <div class="wrapper">
+      <div id="app" class="col m2 s2">
+        <div class="row s2">
+          <div class="col box p3 w2">
+            <h1>CVS1</h1>
+            <h2>Computational Vertex Synthesis</h2>
+          </div>
+          <div class="col box p3 w2">
+            <label>MIDI Input</label>
+            <select id="midi-devices">
+            </select>
+          </div>
+          <div class="col box p3 w2">
+            <label>MIDI Channel</label>
+            <input type="number" min="1" max="16" value="1" id="midi-channel">
+          </div>
+        </div>
+        <div class="col box p3">
+          <label>Waveform</label>
+          <div id="screen" class="composite">
+            <canvas id="waveform"></canvas>
+            <canvas id="measure"></canvas>
+            <canvas id="graph"></canvas>
+            <canvas id="handle"></canvas>
+          </div>
+        </div>
+        <div class="row s2">
+          <div class="col box p3 w2">
+            <label>Interpolation</label>
+            <select id="mode">
+              <option value="linear">linear</option>
+              <option value="spike">spike</option>
+              <option value="quadratic">quadratic</option>
+              <option value="cubic">cubic</option>
+            </select>
+          </div>
+          <div class="col box p3 w2">
+            <label>Tune</label>
+            <input type="range" min="0" max="88" value="48" id="tune">
+          </div>
+          <div class="col box p3 w2">
+            <label>Fine Tune</label>
+            <input type="range" min="0" max="200" value="100" id="fine-tune">
+          </div>
+          <div class="col box p3 w2">
+            <label>Note Off Time</label>
+            <input type="range" min="0" max="100" value="50" id="note-off-time">
+          </div>
+          <div class="col box p3 w2">
+            <label>Inertia</label>
+            <input type="range" min="0" max="100" value="0" id="smoothing">
+          </div>
+          <div class="col box p3 w2" id="protect-speaker">
+            <label>Protect Speakers</label>
+            <input type="checkbox" checked="true" id="enforce-zero">
+          </div>
+        </div>
+        <div class="col box p3">
+          <div id="ribbon"></div>
+          <div id="keyboard"></div>
+        </div>
+
+      </div>
+    </div>
+    <script src="main.js"></script>
+  </body>
+</html>
