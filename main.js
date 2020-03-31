@@ -1,3 +1,4 @@
+(function() {
 /* CVS1 */
 
 /*
@@ -17,6 +18,11 @@ function lerp(a, b, q) {
 
 /* Waveform *******************************************************************/
 
+const LINEAR = 0
+const SPIKE = 1
+const SQUARE = 2
+const CUBE = 3
+
 function Waveform(ctx) {
   this.context = ctx
   this.interpolation = "linear"
@@ -31,8 +37,8 @@ function Waveform(ctx) {
   this.value = 0
   this.paused = true
   this.vertices = [
-    { t: 0.25, a: .5},
-    { t: 0.75, a: -.5},
+    { t: 0.25, a: .5, i: LINEAR},
+    { t: 0.75, a: -.5, i: LINEAR},
   ]
 }
 
@@ -123,9 +129,9 @@ Waveform.prototype.next = function() {
   }
   to = a
   let ticks = Math.max(1,Math.round(delta))
-  this.task = {
+  return {
     type: "vertex",
-    interpolation: this.interpolation,
+    interpolation: next.i,
     endPos: t,
     samples,
     start: this.tick,
@@ -143,9 +149,9 @@ Waveform.prototype.fadeOut = function() {
   }
   let samples = this.calculateSamples()
   let ticks = Math.max(1,Math.round(samples*this.noteOffTime))
-  this.task = {
+  return {
     type: "pause",
-    interpolation: this.interpolation,
+    interpolation: LINEAR,
     endPos: 0,
     samples,
     start: this.tick,
@@ -155,16 +161,45 @@ Waveform.prototype.fadeOut = function() {
   }
 }
 
+Waveform.prototype.interpolate = function(q,interpolation) {
+  let qs = q
+  switch(interpolation) {
+    case LINEAR:
+      qs = q
+      break
+    case SPIKE:
+      qs = (Math.pow((q-.5)/.5,3) +1)/2
+      break
+    case SQUARE:
+      if (q<.5) {
+        qs = Math.pow(q/.5, 2)/2
+      } else {
+        qs = -((Math.pow((1-q)/.5, 2)-1)/2)+.5
+      }
+      break
+    case CUBE:
+      if (q<.5) {
+        qs = Math.pow(q/.5, 3)/2
+      } else {
+        qs = -((Math.pow((1-q)/.5, 3)-1)/2)+.5
+      }
+      break
+  }
+  return qs
+}
+
 Waveform.prototype.calculate = function() {
   if (!this.task || this.tick-this.task.start >= this.task.ticks) {
     if (this.paused) {
       if( this.value != 0) {
-        this.fadeOut()
+        this.prevTask = this.task
+        this.task = this.fadeOut()
       } else {
         this.task = null
       }
     } else {
-      this.next()
+      this.prevTask = this.task
+      this.task = this.next()
     }
   }
   if (!this.task) {
@@ -173,28 +208,12 @@ Waveform.prototype.calculate = function() {
   }
   let q
   let qs
+  let interpolation
   q =  (this.tick-this.task.start)/ (this.task.ticks)
-  switch(this.task.interpolation) {
-    case "linear":
-      qs = q
-      break
-    case "spike":
-      qs = (Math.pow((q-.5)/.5,3) +1)/2
-      break
-    case "quadratic":
-      if (q<.5) {
-        qs = Math.pow(q/.5, 2)/2
-      } else {
-        qs = -((Math.pow((1-q)/.5, 2)-1)/2)+.5
-      }
-      break
-    case "cubic":
-      if (q<.5) {
-        qs = Math.pow(q/.5, 3)/2
-      } else {
-        qs = -((Math.pow((1-q)/.5, 3)-1)/2)+.5
-      }
-      break
+  qs = this.interpolate(q, this.task.interpolation)
+  if (this.prevTask) {
+    let qs1 = this.interpolate(q, this.prevTask.interpolation)
+    qs = (qs * q) + (qs1 * (1-q))
   }
   this.tick++
   this.value = lerp(this.task.from, this.task.to, qs)
@@ -205,7 +224,7 @@ Waveform.prototype.calculate = function() {
 
 function VertexSynth(ctx) {
   this.context = ctx
-  this.BUFFER_SIZE = 1024
+  this.BUFFER_SIZE = 2048
   this.waveform = new Waveform(this.context)
   this.paused = false
   this.lastStep = 0
@@ -224,9 +243,18 @@ VertexSynth.prototype.updateWaveform = function() {
 }
 
 VertexSynth.prototype.noteOn = function() {
-  this.paused = false
-  this.speakerProtection = false
-  this.updateWaveform()
+  if (this.context.state === "running") {
+    this.paused = false
+    this.speakerProtection = false
+    this.updateWaveform()
+  } else {
+    this.context.resume().then(() => {
+      this.paused = false
+      this.speakerProtection = false
+      this.updateWaveform()
+    })
+  }
+
 }
 
 VertexSynth.prototype.noteOff = function() {
@@ -275,7 +303,7 @@ if (!context.createScriptProcessor)
 
 var analyser = context.createAnalyser()
 analyser.connect(context.destination)
-analyser.fftSize = 2048
+analyser.fftSize = 4096
 var bufferLength = analyser.frequencyBinCount
 var dataArray = new Uint8Array(bufferLength)
 
@@ -326,6 +354,9 @@ screen.addEventListener('mousedown', (e) => {
       }
     }
 
+    if (selected) {
+      document.querySelector("#mode").value = selected.i
+    }
     window.addEventListener('mousemove', onMouseMove)
     window.addEventListener('mouseout', onMouseOut)
     window.addEventListener('mouseup', onMouseUp)
@@ -367,7 +398,8 @@ function stopDrag(e) {
       clickOnCanvas = false
       selected = {
         t: Math.max(0, Math.min(1, mouseX/handleCV.width)),
-        a: Math.max(-1,  Math.min(1, ((1-(mouseY / handleCV.height)) *2)-1))
+        a: Math.max(-1,  Math.min(1, ((1-(mouseY / handleCV.height)) *2)-1)),
+        i: LINEAR
       }
       synth.waveform.vertices.push(selected)
       synth.waveform.updateVertices()
@@ -686,7 +718,8 @@ noteOffTime.addEventListener("input", (e) => {
 
 let mode = document.querySelector("#mode")
 mode.addEventListener("change", (e) => {
-  synth.waveform.interpolation = e.target.value
+  if (selected) selected.i = parseInt(e.target.value)
+  //synth.waveform.interpolation = e.target.value
 })
 
 /* Smoothing ******************************************************************/
@@ -772,23 +805,27 @@ function replaceElements() {
   midiDevices.addEventListener('change', connect)
 }
 
-navigator.requestMIDIAccess().then((access) => {
-    midiInputs = Array.from(access.inputs.values())
-    replaceElements()
-    access.onstatechange = (e) => {
+try {
+  navigator.requestMIDIAccess().then((access) => {
       midiInputs = Array.from(access.inputs.values())
       replaceElements()
-    }
+      access.onstatechange = (e) => {
+        midiInputs = Array.from(access.inputs.values())
+        replaceElements()
+      }
 
-  }
-)
+    }
+  )
+} catch(e) {
+  console.warn(e)
+}
+
 
 /* Render Loop ****************************************************************/
 
 let tick = 0
 function graphicsLoop() {
   requestAnimationFrame(() => {
-    graphicsLoop()
     if (mouseDown) {
       updateSelected()
       renderGraph()
@@ -799,6 +836,9 @@ function graphicsLoop() {
     } else {
       enforceZeroLabel.classList.remove("error")
     }
+    graphicsLoop()
   })
 }
 graphicsLoop()
+
+})();
